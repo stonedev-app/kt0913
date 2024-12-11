@@ -1,0 +1,12 @@
+services:
+  kt0913:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: "baker-link-env"
+    container_name: "kt0913-container"
+    volumes:
+      - "../:/kt0913"
+    working_dir: /kt0913
+    command: /bin/sh
+    tty: true
