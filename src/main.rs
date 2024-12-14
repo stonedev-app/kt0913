@@ -87,3 +87,18 @@ where
     // Send Data
     i2c.write(i2c_address, &transmisson_data).unwrap();
 }
+
+fn i2c_read_multibyte<T>(i2c: &mut T, i2c_address: u8, register_address: u8, read_data: &mut u16)
+where
+    T: I2c,
+{
+    // Received data( 2 bytes)
+    let mut received_data = [0u8; 2];
+    // Transmission Data(1 bytes)
+    let mut transmisson_data = [0u8; 1];
+    transmisson_data[0..1].copy_from_slice(&register_address.to_be_bytes());
+    // Read Data
+    i2c.write_read(i2c_address, &transmisson_data, &mut received_data).unwrap();
+    // Set received data
+    *read_data = u16::from(received_data[0]) << 8 | u16::from(received_data[1]);
+}
