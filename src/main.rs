@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use defmt::*;
 use defmt_rtt as _;
 use embedded_hal::i2c::I2c;
 use hal::pac;
@@ -17,10 +18,15 @@ const XTAL_FREQ_HZ: u32 = 12_000_000;
 const I2C_ADDRESS: u8 = 0x35;
 
 // Register Address
+const AMSYSCFG: u8 = 0x16; // AM/FM mode Control / Audio Gain Selection
 const GPIOCFG: u8 = 0x1D; // Vol Pin Mode Selection, CH Pin Mode Selection
+const USERSTARTCH: u8 = 0x2F; // User band start channel, only effect when USERBAND=1
+const USERGUARD: u8 = 0x30; // User band guard number, only effect when USERBAND=1
+const USERCHANNUM: u8 = 0x31; // User band channel number, only effect when USERBAND=1
 
 #[rp2040_hal::entry]
 fn main() -> ! {
+    info!("Program start!");
     let mut pac = pac::Peripherals::take().unwrap();
     let mut watchdog = hal::Watchdog::new(pac.WATCHDOG);
 
@@ -66,8 +72,12 @@ fn main() -> ! {
         peripheral_clock,
     );
 
+    // FM
+    fm_mode(&mut i2c, I2C_ADDRESS);
+
+    // Dial mode VOL amd CH
     // VOL = 10 / CH = 10
-    i2c_send_multibyte(&mut i2c, I2C_ADDRESS, GPIOCFG, 0b0000000000001010u16);
+    i2c_send_multibyte(&mut i2c, I2C_ADDRESS, GPIOCFG, 0b0000_0000_0000_1010u16);
 
     loop {
         cortex_m::asm::wfi();
@@ -98,7 +108,30 @@ where
     let mut transmisson_data = [0u8; 1];
     transmisson_data[0..1].copy_from_slice(&register_address.to_be_bytes());
     // Read Data
-    i2c.write_read(i2c_address, &transmisson_data, &mut received_data).unwrap();
+    i2c.write_read(i2c_address, &transmisson_data, &mut received_data)
+        .unwrap();
     // Set received data
     *read_data = u16::from(received_data[0]) << 8 | u16::from(received_data[1]);
+}
+
+fn fm_mode<T>(i2c: &mut T, i2c_address: u8)
+where
+    T: I2c,
+{
+    // Read AMSYSCFG
+    let mut amsyscfg_mode: u16 = 0;
+    i2c_read_multibyte(i2c, i2c_address, AMSYSCFG, &mut amsyscfg_mode);
+    debug!("Current AMSYSCFG 0b{:016b}", amsyscfg_mode);
+    // AM_FM(15 Bit) 0 = FM Mode
+    amsyscfg_mode = amsyscfg_mode & !(1u16 << 15);
+    // USERBAND(14 Bit) 1 = Use user-defined band
+    amsyscfg_mode = amsyscfg_mode | 0b0100_0000_0000_0000u16;
+    debug!("Send AMSYSCFG 0b{:016b}", amsyscfg_mode);
+    i2c_send_multibyte(i2c, i2c_address, AMSYSCFG, amsyscfg_mode);
+    // 76MHz = 1520 * 50kHZ (1520= 5F0h)
+    i2c_send_multibyte(i2c, i2c_address, USERSTARTCH, 0b0000_0101_1111_0000u16);
+    // 23ch  2kohm
+    i2c_send_multibyte(i2c, i2c_address, USERGUARD, 0b0000_0000_0001_0111u16);
+    // 181ch  76MHz - 94MHz  100KHz/step  8kohm
+    i2c_send_multibyte(i2c, i2c_address, USERCHANNUM, 0b0000_0000_1011_0101u16);
 }
