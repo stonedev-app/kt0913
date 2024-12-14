@@ -11,7 +11,10 @@ use rp2040_hal::{self as hal, fugit::HertzU32, Clock};
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
-const XTAL_FREQ_HZ: u32 = 12_000_000u32;
+const XTAL_FREQ_HZ: u32 = 12_000_000;
+
+// I2C Device Address
+const I2C_ADDRESS: u8 = 0x35;
 
 // Register Address
 const GPIOCFG: u8 = 0x1D; // Vol Pin Mode Selection, CH Pin Mode Selection
@@ -63,19 +66,24 @@ fn main() -> ! {
         peripheral_clock,
     );
 
-    // I2C Device Address
-    let i2c_address = 0x35u8;
-
-    // Transmission Data(3 bytes)
-    let mut data = [0u8; 3];
-    // Vol Pin Mode Selection, CH Pin Mode Selection
-    data[0..1].copy_from_slice(&GPIOCFG.to_be_bytes());
     // VOL = 10 / CH = 10
-    data[1..3].copy_from_slice(&0b0000000000001010u16.to_be_bytes());
-    // Send Data
-    i2c.write(i2c_address, &data).unwrap();
+    i2c_send_multibyte(&mut i2c, I2C_ADDRESS, GPIOCFG, 0b0000000000001010u16);
 
     loop {
         cortex_m::asm::wfi();
     }
+}
+
+fn i2c_send_multibyte<T>(i2c: &mut T, i2c_address: u8, register_address: u8, write_data: u16)
+where
+    T: I2c,
+{
+    // Transmission Data(3 bytes)
+    let mut transmisson_data = [0u8; 3];
+    // Vol Pin Mode Selection, CH Pin Mode Selection
+    transmisson_data[0..1].copy_from_slice(&register_address.to_be_bytes());
+    // VOL = 10 / CH = 10
+    transmisson_data[1..3].copy_from_slice(&write_data.to_be_bytes());
+    // Send Data
+    i2c.write(i2c_address, &transmisson_data).unwrap();
 }
