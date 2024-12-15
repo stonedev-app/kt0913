@@ -110,7 +110,12 @@ fn main() -> ! {
         i2c_read_multibyte(&mut i2c, I2C_ADDRESS, TUNE, &mut tune);
         let fm_freq: u16 = tune & 0b0000_1111_1111_1111u16;
         let fm_freq = (fm_freq as f32) / 1000.0 * 50.0;
-        info!("FM_FREQ: {} MHz", fm_freq);
+        let fm_freq_scaled = (fm_freq * 10.0) as u16;
+        info!(
+            "FM_FREQ: {}.{} MHz",
+            fm_freq_scaled / 10,
+            fm_freq_scaled % 10
+        );
         // wait 1000ms
         timer.delay_ms(1000);
     }
