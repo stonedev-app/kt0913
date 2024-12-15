@@ -78,6 +78,9 @@ fn main() -> ! {
         peripheral_clock,
     );
 
+    // wait chip ready
+    wait_chip_ready(&mut i2c, I2C_ADDRESS, &mut timer);
+
     // FM
     fm_mode(&mut i2c, I2C_ADDRESS);
 
@@ -140,6 +143,27 @@ where
         .unwrap();
     // Set received data
     *read_data = u16::from(received_data[0]) << 8 | u16::from(received_data[1]);
+}
+
+fn wait_chip_ready<T>(i2c: &mut T, i2c_address: u8, timer: &mut rp2040_hal::Timer)
+where
+    T: I2c,
+{
+    let mut ready = false;
+    while !ready {
+        let mut statusc = 0u16;
+        i2c_read_multibyte(i2c, i2c_address, STATUSC, &mut statusc);
+        let chiprdy: u16 = (statusc & 0b0010_0000_0000_0000u16) >> 13;
+        info!("CHIPRDY: {}", chiprdy);
+        if chiprdy == 1 {
+            ready = true;
+            info!("Chip is ready, calibration done.");
+        } else {
+            info!("Chip is not ready.");
+            // wait 100ms
+            timer.delay_ms(100);
+        }
+    }
 }
 
 fn fm_mode<T>(i2c: &mut T, i2c_address: u8)
