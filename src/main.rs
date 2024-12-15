@@ -19,6 +19,7 @@ const I2C_ADDRESS: u8 = 0x35;
 
 // Register Address
 const CHIP_ID: u8 = 0x01;
+const STATUSA: u8 = 0x12; //RSSI
 const AMSYSCFG: u8 = 0x16; // AM/FM mode Control / Audio Gain Selection
 const GPIOCFG: u8 = 0x1D; // Vol Pin Mode Selection, CH Pin Mode Selection
 const USERSTARTCH: u8 = 0x2F; // User band start channel, only effect when USERBAND=1
@@ -83,15 +84,20 @@ fn main() -> ! {
     i2c_send_multibyte(&mut i2c, I2C_ADDRESS, GPIOCFG, 0b0000_0000_0000_1010u16);
 
     loop {
-        debug!("loop start");
         // Read chipID
         let mut chip_id = 0u16;
         i2c_read_multibyte(&mut i2c, I2C_ADDRESS, CHIP_ID, &mut chip_id);
         info!("chipID: 0x{:04X}", chip_id);
+        // Read STATUSA
+        let mut statusa = 0u16;
+        i2c_read_multibyte(&mut i2c, I2C_ADDRESS, STATUSA, &mut statusa);
+        // RSSI
+        let fm_rssi = (statusa & 0b0000_0001_1111_000u16) >> 3;
+        let fm_rssi: i16 = -100 + (fm_rssi as i16) * 3;
+        info!("RSSI: {}", fm_rssi);
 
         // wait 1000ms
         timer.delay_ms(1000);
-        debug!("loop end");
     }
 }
 
