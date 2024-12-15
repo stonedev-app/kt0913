@@ -3,7 +3,7 @@
 
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::i2c::I2c;
+use embedded_hal::{delay::DelayNs, i2c::I2c};
 use hal::pac;
 use panic_probe as _;
 use rp2040_hal::{self as hal, fugit::HertzU32, Clock};
@@ -18,6 +18,7 @@ const XTAL_FREQ_HZ: u32 = 12_000_000;
 const I2C_ADDRESS: u8 = 0x35;
 
 // Register Address
+const CHIP_ID: u8 = 0x01;
 const AMSYSCFG: u8 = 0x16; // AM/FM mode Control / Audio Gain Selection
 const GPIOCFG: u8 = 0x1D; // Vol Pin Mode Selection, CH Pin Mode Selection
 const USERSTARTCH: u8 = 0x2F; // User band start channel, only effect when USERBAND=1
@@ -41,6 +42,8 @@ fn main() -> ! {
     )
     .ok()
     .unwrap();
+
+    let mut timer = rp2040_hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     let sio = hal::Sio::new(pac.SIO);
 
@@ -80,7 +83,15 @@ fn main() -> ! {
     i2c_send_multibyte(&mut i2c, I2C_ADDRESS, GPIOCFG, 0b0000_0000_0000_1010u16);
 
     loop {
-        cortex_m::asm::wfi();
+        debug!("loop start");
+        // Read chipID
+        let mut chip_id = 0u16;
+        i2c_read_multibyte(&mut i2c, I2C_ADDRESS, CHIP_ID, &mut chip_id);
+        info!("chipID: 0x{:04X}", chip_id);
+
+        // wait 1000ms
+        timer.delay_ms(1000);
+        debug!("loop end");
     }
 }
 
