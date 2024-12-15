@@ -19,7 +19,9 @@ const I2C_ADDRESS: u8 = 0x35;
 
 // Register Address
 const CHIP_ID: u8 = 0x01;
-const STATUSA: u8 = 0x12; //RSSI
+const TUNE: u8 = 0x03; // FM Channel
+const STATUSA: u8 = 0x12; // RSSI
+const STATUSC: u8 = 0x14; // SNR
 const AMSYSCFG: u8 = 0x16; // AM/FM mode Control / Audio Gain Selection
 const GPIOCFG: u8 = 0x1D; // Vol Pin Mode Selection, CH Pin Mode Selection
 const USERSTARTCH: u8 = 0x2F; // User band start channel, only effect when USERBAND=1
@@ -92,10 +94,20 @@ fn main() -> ! {
         let mut statusa = 0u16;
         i2c_read_multibyte(&mut i2c, I2C_ADDRESS, STATUSA, &mut statusa);
         // RSSI
-        let fm_rssi = (statusa & 0b0000_0001_1111_000u16) >> 3;
+        let fm_rssi: u16 = (statusa & 0b0000_0001_1111_000u16) >> 3;
         let fm_rssi: i16 = -100 + (fm_rssi as i16) * 3;
         info!("RSSI: {}", fm_rssi);
-
+        // SNR
+        let mut statusc = 0u16;
+        i2c_read_multibyte(&mut i2c, I2C_ADDRESS, STATUSC, &mut statusc);
+        let snr: u16 = (statusc & 0b0001_1111_1100_0000u16) >> 6;
+        info!("SNR: {}", snr);
+        // FM freq
+        let mut tune = 0u16;
+        i2c_read_multibyte(&mut i2c, I2C_ADDRESS, TUNE, &mut tune);
+        let fm_freq: u16 = tune & 0b0000_1111_1111_1111u16;
+        let fm_freq = (fm_freq as f32) / 1000.0 * 50.0;
+        info!("FM_FREQ: {} MHz", fm_freq);
         // wait 1000ms
         timer.delay_ms(1000);
     }
@@ -109,7 +121,6 @@ where
     let mut transmisson_data = [0u8; 3];
     // Vol Pin Mode Selection, CH Pin Mode Selection
     transmisson_data[0..1].copy_from_slice(&register_address.to_be_bytes());
-    // VOL = 10 / CH = 10
     transmisson_data[1..3].copy_from_slice(&write_data.to_be_bytes());
     // Send Data
     i2c.write(i2c_address, &transmisson_data).unwrap();
